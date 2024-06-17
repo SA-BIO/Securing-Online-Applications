@@ -29,7 +29,7 @@ constexpr int bitsToBytes(int bitNum) {
 
 int main()
 {
-    const int TEST_CASES = 50000;   //100000
+    const int TEST_CASES = 50000;   
 
     const int arcType = 64;
 
@@ -38,7 +38,7 @@ int main()
     // round to the nearest number of bits needed that is a multiple of 8
     constexpr int cardSizeByteRound = BYTE_SIZE * bitsToBytes(CARD_SIZE);
 
-    std::cout << "Emulating " << 10000 << " games with " << CARD_NUM << " cards per game, each of size " << cardSizeByteRound << " bits \n";
+    std::cout << "Emulating " << TEST_CASES << " games with " << CARD_NUM << " cards per game, each of size " << cardSizeByteRound << " bits \n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
 
