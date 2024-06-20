@@ -1,7 +1,7 @@
 #include "BaseGame.h"
 
 // This codification doesn't follow the one specified in the paper. This is just an emulation of CPU usage not a real implementation.
-inline int getSuit(byte card) {
+inline static int getSuit(byte card) {
     if (card < 13) {
         return 0;
     }
@@ -18,18 +18,21 @@ inline int getSuit(byte card) {
 
 
 
-void testBaseInit(Game* game) {
-    Player* p1 = new Player();
-    Player* p2 = new Player();
-
-    game->player1 = p1;
-    game->player2 = p2;
-
-    p1->currentGame = game;
-    p2->currentGame = game;
-
-    p1->generateDeck();
-    p2->generateDeck();
+void testBaseInit(Game* game, bool playerOneInit) {
+    if (playerOneInit) {
+        Player* p1 = new Player();
+        game->player1 = p1;
+        p1->currentGame = game;
+        p1->seed = static_cast<uint>(rd());
+        p1->generateDeck();
+    }
+    else {
+        Player* p2 = new Player();
+        game->player2 = p2;
+        p2->currentGame = game;
+        p2->seed = static_cast<uint>(rd());
+        p2->generateDeck();
+    }
 }
 
 

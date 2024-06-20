@@ -9,11 +9,23 @@ typedef unsigned long u64;
 typedef long long tLong;
 
 //DEPENDENT VARS:
-#define CARD_SIZE 6      //for base Spades: 6
-#define CARD_NUM 13      //for base Spades: 13
-#define TURN_NUM 13      //for base Sapdes: 13
-
-#define DECK_SIZE 52	//Standart deck
+#define CARD_SIZE_BYTES 1                               //for base Spades 6 bits wich rounds to 1 byte
+#define CARD_SIZE_BITS (BYTE_SIZE * CARD_SIZE_BYTES)
+#define CARD_NUM 13                                     //for base Spades: 13
+#define TURN_NUM CARD_NUM                               //for base Sapdes: 13
+#define DECK_SIZE 52	                                //Standart deck
 
 #define LOAD_BYTES(src) _mm_load_si128((u128 *)(src))
 #define STORE_BYTES(dest,src) _mm_storeu_si128((u128 *)(dest),src)
+
+constexpr int ceilNum(float num) {
+    int inum = static_cast<int>(num);
+    return inum + (num != inum);
+}
+constexpr int divUp(int a, int b) {
+    return ceilNum(static_cast<float>(a) / b);
+}
+// What is the minimum byte amount to store the necessary bit number
+constexpr int bitsToBytes(int bitNum) {
+    return divUp(bitNum, BYTE_SIZE);
+}

@@ -3,7 +3,6 @@
 #include "utils.h"
 
 extern std::random_device rd;
-extern std::mt19937 gen;
 extern std::uniform_int_distribution<> distr;
 
 class Game;
@@ -12,6 +11,7 @@ class Player {
 public:
     byte* cards;
     Game* currentGame;
+    uint seed;
 
     Player() {
         cards = new byte[CARD_NUM];
@@ -20,6 +20,8 @@ public:
         delete[] cards;
     }
     void generateDeck() {
+        std::mt19937 gen(seed);
+
         byte tempDeck[DECK_SIZE * 4];
         for (int i = 0; i < DECK_SIZE * 4; i++) {
             //Note that this is not the correct card codification. It is just an example for the CPU usage emulation
@@ -80,5 +82,5 @@ public:
 };
 
 
-void testBaseInit(Game* game);
+void testBaseInit(Game* game, bool playerOneInit);
 void testBaseGame(Game* game, uint* randVals);
