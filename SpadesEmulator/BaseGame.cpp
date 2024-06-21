@@ -1,5 +1,66 @@
 #include "BaseGame.h"
 
+
+static byte fullDeck[DECK_SIZE];
+static int p1Suit;
+static int p2Suit;
+
+Player::Player() {
+    cards = new byte[CARD_NUM];
+}
+Player::~Player() {
+    delete[] cards;
+}
+void Player::generateDeck() {
+    std::mt19937 gen(seed);
+
+    for (int i = 0; i < DECK_SIZE; i++) {
+        //Note that this is not the correct card codification. It is just an example for the CPU usage emulation
+        fullDeck[i] = i;
+    }
+    for (int i = 0; i < CARD_NUM; i++) {
+        int randPos = distr(gen);
+        fullDeck[i] = fullDeck[i] ^ fullDeck[randPos];
+        fullDeck[randPos] = fullDeck[i] ^ fullDeck[randPos];
+        fullDeck[i] = fullDeck[i] ^ fullDeck[randPos];
+    }
+    for (int i = 0; i < CARD_NUM; i++) {
+        cards[i] = fullDeck[i];
+    }
+}
+
+Game::Game() {
+    player1 = nullptr;
+    player2 = nullptr;
+    scoreP1 = 0;
+    scoreP2 = 0;
+    turnCount = 0;
+    playerCardP1 = 0;
+    playerCardP2 = 0;
+}
+
+Game::~Game() {
+    delete player1;
+    delete player2;
+}
+
+bool Game::playTurn(byte p1Play, byte p2Play) {
+    if (p1Play > CARD_NUM || p2Play > CARD_NUM) { return false; }
+
+    playerCardP1 = player1->cards[p1Play];
+    playerCardP2 = player2->cards[p2Play];
+
+    if (turnCount == TURN_NUM) {
+        return true;
+    }
+    else {
+        turnCount++;
+        return false;
+    }
+}
+
+
+
 // This codification doesn't follow the one specified in the paper. This is just an emulation of CPU usage not a real implementation.
 inline static int getSuit(byte card) {
     if (card < 13) {
@@ -41,8 +102,8 @@ void testBaseGame(Game* game, uint* randVals) {
         game->playerCardP1 = game->player1->cards[randVals[i]];
         game->playerCardP2 = game->player2->cards[randVals[i]];
 
-        int p1Suit = getSuit(game->playerCardP1);
-        int p2Suit = getSuit(game->playerCardP2);
+        p1Suit = getSuit(game->playerCardP1);
+        p2Suit = getSuit(game->playerCardP2);
 
         if (game->turnCount % 2 == 0) {
             if (p1Suit == p2Suit) {

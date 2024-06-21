@@ -8,7 +8,7 @@
 using namespace std::chrono;
 
 std::random_device rd;
-std::uniform_int_distribution<> distr(0, (DECK_SIZE * 4) - 1);
+std::uniform_int_distribution<> distr(0, (DECK_SIZE) - 1);
 
 byte randByte() {
     return static_cast<byte>(rand() & 255);
@@ -30,53 +30,53 @@ void mainTest() {
     std::cout << "Emulating " << TEST_CASES << " games with " << CARD_NUM << " cards per game, each of size: " << CARD_SIZE_BYTES << " byte(s) \n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
+    // BASE MEM
+    const int gameMemBits = 2 * arcType + 3 * 32 + 2 * BYTE_SIZE;                   //2 refs to players, 3 ints and 2 bytes for internal vars
+    const int playerMemBits = CARD_NUM * BYTE_SIZE + arcType + 32;                  //13 bytes for cards, a ref to the game and a uint for player seed
 
-    //per player we need a player ref, an enemy ref and a game ref
-    const int baseRefs = 3 * arcType;
-    //per player, we need 2 bytes for the card played each turn, 2 bytes for each players points and a final byte for the game turn 
-    const int baseAdditionalStuff = (2 * pNumPerGame + 1) * BYTE_SIZE;
-    const int baseCardInfo = CARD_NUM * CARD_SIZE_BITS;
-
-    const int memBaseBits = baseRefs + baseAdditionalStuff + baseCardInfo;
+    const int memBaseBits = playerMemBits + gameMemBits / 2;                        //we need 1 game for every 2 players
 
 
     //HYBRID MEM
     const int lambda = 128; //security param
     const int hSize = 256; //hash output size
 
-    const int memHybInitBits = lambda + hSize * 3;
-    const int memHybGameNoRelayBits = lambda;
-    const int memHybGameRelayBits = lambda + 1;
+    const int hybGameMemBits = 2 * lambda;                                                      //2 player seeds 
 
+    const int memHybInitBits = hybGameMemBits/2;                                                //we need 1 game for every 2 players
+    const int memHybGameNoRelayBits = memHybInitBits;                                           //seed
+    const int memHybGameRelayBits = memHybGameNoRelayBits + 2*BYTE_SIZE;                        //seed, 2 auxiliary integers and 2 bytes remembering each players turn and previous action
+    const int memHybGameRelayCheatBits = memHybGameRelayBits;                                   //u128 and a byte as auxiliary params
 
     constexpr float memBaseBytes = static_cast<float>(bitsToBytes(memBaseBits) * TEST_CASES) / 1024 / 1024;
     constexpr float memHybInitBytes = static_cast<float>(bitsToBytes(memHybInitBits) * TEST_CASES) / 1024 / 1024;
     constexpr float memHybGameNoRelayBytes = static_cast<float>(bitsToBytes(memHybGameNoRelayBits) * TEST_CASES) / 1024 / 1024;
     constexpr float memHybGameRelayBytes = static_cast<float>(bitsToBytes(memHybGameRelayBits) * TEST_CASES) / 1024 / 1024;
-    std::cout << "Total Base Memory needed for initialization:                  " << memBaseBytes << " (MB)\n";
-    std::cout << "Total Base Memory needed for game:                            " << memBaseBytes << " (MB)\n";
-    std::cout << "Total Hybrid Memory needed for initialization:                " << memHybInitBytes << " (MB)\n";
-    std::cout << "Total Hybrid Memory needed for game with NO relay fallback:   " << memHybGameNoRelayBytes << " (MB)\n";
-    std::cout << "Total Hybrid Memory needed for game with relay fallback:      " << memHybGameRelayBytes << " (MB)\n";
+    constexpr float memHybGameRelayCheatBytes = static_cast<float>(bitsToBytes(memHybGameRelayCheatBits) * TEST_CASES) / 1024 / 1024;
+    std::cout << "Estimated Base Memory needed for initialization:                              " << memBaseBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Memory needed for initialization:                            " << memHybInitBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Memory needed for game with NO relay fallback:               " << memHybGameNoRelayBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Memory needed for game with relay fallback (no cheating):    " << memHybGameRelayBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Memory needed for game with relay fallback (cheat):          " << memHybGameRelayCheatBytes << " (MB)\n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
 
     constexpr float netBaseFlowBytes = static_cast<float>(TURN_NUM * CARD_SIZE_BYTES * TEST_CASES) / 1024 / 1024;
-    const int netHybInitBits = hSize * 2 + lambda;
+    const int netHybInitBits = hSize + lambda;
     constexpr float netHybInitBytes = static_cast<float>(bitsToBytes(netHybInitBits) * TEST_CASES) / 1024 / 1024;
-    //We asume relay is activated in the middle of the game (on avarage) and for one player only
-    constexpr float netHybRelayFlow = netBaseFlowBytes / 2 / 2;
+    //We asume relay is activated in the middle of the game (on avarage)
+    constexpr float netHybRelayFlow = netBaseFlowBytes / 2 ;
 
-    std::cout << "Total Base Network (in) for initialization:                   " << 0 << " (MB)\n";
-    std::cout << "Total Base Network (out) for initialization:                  " << netBaseFlowBytes << " (MB)\n";
-    std::cout << "Total Base Network (in) for game:                             " << netBaseFlowBytes << " (MB)\n";
-    std::cout << "Total Base Network (out) for game:                            " << netBaseFlowBytes << " (MB)\n";
-    std::cout << "Total Hybrid Network (in) for initialization:                 " << 0 << " (MB)\n";
-    std::cout << "Total Hybrid Network (out) for initialization:                " << netHybInitBytes << " (MB)\n";
-    std::cout << "Total Hybrid Network (in) for game with NO relay fallback:    " << 0 << " (MB)\n";
-    std::cout << "Total Hybrid Network (out) for game with NO relay fallback:   " << 0 << " (MB)\n";
-    std::cout << "Total Hybrid Network (in) for game with relay fallback:       " << netHybRelayFlow << " (MB)\n";
-    std::cout << "Total Hybrid Network (out) for game with relay fallback:      " << netHybRelayFlow << " (MB)\n";
+    std::cout << "Estimated Base Network (in) for initialization:                               " << 0 << " (MB)\n";
+    std::cout << "Estimated Base Network (out) for initialization:                              " << netBaseFlowBytes << " (MB)\n";
+    std::cout << "Estimated Base Network (in) for game:                                         " << netBaseFlowBytes << " (MB)\n";
+    std::cout << "Estimated Base Network (out) for game:                                        " << netBaseFlowBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (in) for initialization:                             " << 0 << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (out) for initialization:                            " << netHybInitBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (in) for game with NO relay fallback:                " << 0 << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (out) for game with NO relay fallback:               " << 0 << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (in) for game with relay fallback:                   " << netHybRelayFlow << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (out) for game with relay fallback:                  " << netHybRelayFlow << " (MB)\n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
 
@@ -88,7 +88,6 @@ void mainTest() {
     }
 
     //test Base CPU times
-
     Game** gameArr = new Game * [TEST_CASES];
     for (int i = 0; i < TEST_CASES; i++) {
         gameArr[i] = new Game();
@@ -102,7 +101,7 @@ void mainTest() {
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
     tLong durationCast = duration.count();
-    std::cout << "Total CPU Base Initialization time:                           " << durationCast << " (ms)" << "\n";
+    std::cout << "Measured CPU Base Initialization time:                                        " << durationCast << " (ms)" << "\n";
 
     start = high_resolution_clock::now();
     for (int i = 0; i < TEST_CASES; i++) {
@@ -111,7 +110,7 @@ void mainTest() {
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
     durationCast = duration.count();
-    std::cout << "Total CPU Base Game time:                                     " << durationCast << " (ms)" << "\n";
+    std::cout << "Measured CPU Base Game time:                                                  " << durationCast << " (ms)" << "\n";
 
     delete[] randArrBase;
     for (int i = 0; i < TEST_CASES; ++i) {
@@ -134,9 +133,9 @@ void mainTest() {
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
     durationCast = duration.count();
-    std::cout << "Total CPU Hybrid Initialization time:                         " << durationCast << " (ms)" << "\n";
+    std::cout << "Measured CPU Hybrid Initialization time:                                      " << durationCast << " (ms)" << "\n";
 
-    std::cout << "Total CPU Hybrid Game with NO relay fallback time:            " << 0 << " (ms)\n";
+    std::cout << "Measured CPU Hybrid Game with NO relay fallback time:                         " << 0 << " (ms)\n";
 
 
     constexpr int avarageRelayTurn = divUp(TURN_NUM, 2);
@@ -164,7 +163,7 @@ void mainTest() {
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
     tLong durationCast_NoCheat = duration.count();
-    std::cout << "Total CPU Hybrid Game with relay fallback (no cheating) time: " << durationCast_NoCheat << " (ms)\n";
+    std::cout << "Measured CPU Hybrid Game with relay fallback (no cheating) time:              " << durationCast_NoCheat << " (ms)\n";
 
     start = high_resolution_clock::now();
     for (int i = 0; i < TEST_CASES; i++) {
@@ -173,7 +172,7 @@ void mainTest() {
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
     durationCast = duration.count();
-    std::cout << "Total CPU Hybrid Game with relay fallback (cheating) time:    " << durationCast + durationCast_NoCheat << " (ms)\n";
+    std::cout << "Measured CPU Hybrid Game with relay fallback (cheating) time:                 " << durationCast + durationCast_NoCheat << " (ms)\n";
 
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 

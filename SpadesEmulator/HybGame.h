@@ -9,7 +9,7 @@ class GameHyb {
 public:
 	u128 seedP1;
 	u128 seedP2;
-	int turnCount = 0;
+	bool turnCount = false;
 };
 
 
