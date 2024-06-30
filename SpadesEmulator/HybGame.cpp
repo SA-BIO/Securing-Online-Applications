@@ -26,6 +26,7 @@ static byte shaOutput[32];
 
 static int p1Suit;
 static int p2Suit;
+static byte turnAux;
 u128 keyCurrentWhole0;
 
 
@@ -73,11 +74,11 @@ void initConstans() {
     load_haraka_constants();
 }
 
-void testHybInit(GameHyb* game) {
+void testHybInit(u128& seed) {
 
-    randU128(game->seedP1);
-    std::mt19937 gen(static_cast<uint>(_mm_cvtsi128_si32(game->seedP1)));
-    aes128_load_key(game->seedP1);
+    randU128(seed);
+    std::mt19937 gen(static_cast<uint>(_mm_cvtsi128_si32(seed)));
+    aes128_load_key(seed);
 
     for (int i = 0; i < DECK_SIZE; i++) {
         //Note that this is not the correct card codification. It is just an example for the CPU usage emulation
@@ -131,13 +132,16 @@ void testHybInit(GameHyb* game) {
     EVP_MD_CTX_free(context);
 }
 
-void testHybGame_Relay(GameHyb* game, const uint avRelayTurn, byte* randVals0, byte* randVals1, byte* res) {
+void testHybGame_Relay(const uint avRelayTurn, byte* randVals0, byte* randVals1, bool* testComp, byte* res) {
     for (int i = 0; i < avRelayTurn; i++) {
 
         p1Suit = getSuit(randVals0[i]);
         p2Suit = getSuit(randVals1[i]);
 
-        if (game->turnCount) {
+        turnAux = randVals0[i] & 128; //the first bit of our message byte is converted to wich player's turn it is
+        testComp[i] = (turnAux == (randVals1[i] & 128)); //check if both players agree on wich players turn it is
+
+        if (turnAux) {
             if (p1Suit == p2Suit) {
                 if (randVals0[i] > randVals1[i]) {
                     res[i] = 0;
@@ -173,12 +177,11 @@ void testHybGame_Relay(GameHyb* game, const uint avRelayTurn, byte* randVals0, b
                 }
             }
         }
-        game->turnCount = !game->turnCount;
     }
 }
 
-bool testHybGame_Cheat(GameHyb * game, const uint avRelayTurn, byte ketToCheck) {
-    aes128_load_key(game->seedP1);
+bool testHybGame_Cheat(u128& seed, const uint avRelayTurn, byte ketToCheck) {
+    aes128_load_key(seed);
 
     combinAux0[3] = avRelayTurn << 1;
     keyCurrentWhole0 = _mm_xor_si128(IV, LOAD_BYTES(combinAux0));

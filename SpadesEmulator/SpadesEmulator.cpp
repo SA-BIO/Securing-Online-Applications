@@ -20,33 +20,40 @@ uint randUInt() {
 void mainTest() {
     const int TEST_CASES = 100000;
     const int arcType = 64;
-    const int pNumPerGame = 2;
 
+    if (P_NUM != 2) {
+        std::cout << "ERROR: This emulation only accounts for P_NUM = 2" << std::endl;
+        return;
+    }
     if (CARD_SIZE_BYTES != 1) {
-        std::cout << "ERROR: This emulation only accounts for CARD_SIZE_BYTES = 1";
+        std::cout << "ERROR: This emulation only accounts for CARD_SIZE_BYTES = 1" << std::endl;
+        return;
+    }
+    if (CARD_NUM > 256) {
+        std::cout << "ERROR: This emulation only accounts for CARD_NUM <= 256" << std::endl;
         return;
     }
 
-    std::cout << "Emulating " << TEST_CASES << " games with " << CARD_NUM << " cards per game, each of size: " << CARD_SIZE_BYTES << " byte(s) \n";
+    std::cout << "Emulating " << TEST_CASES << " games with " << CARD_NUM << " cards per game and " << TURN_NUM << " turns \n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
     // BASE MEM
-    const int gameMemBits = 2 * arcType + 3 * 32 + 2 * BYTE_SIZE;                   //2 refs to players, 3 ints and 2 bytes for internal vars
-    const int playerMemBits = CARD_NUM * BYTE_SIZE + arcType + 32;                  //13 bytes for cards, a ref to the game and a uint for player seed
+    const int gameMemBits = P_NUM * arcType + 3 * 32 + 2 * BYTE_SIZE;                   //2 refs to players, 3 ints and 2 bytes for internal vars
+    const int playerMemBits = CARD_NUM * BYTE_SIZE + arcType + 32;                      //13 bytes for cards, a ref to the game and a uint for player seed
 
-    const int memBaseBits = playerMemBits + gameMemBits / 2;                        //we need 1 game for every 2 players
+    const int memBaseBits = P_NUM * playerMemBits + gameMemBits;                        //we need 1 game for every 2 players
 
 
     //HYBRID MEM
     const int lambda = 128; //security param
     const int hSize = 256; //hash output size
 
-    const int hybGameMemBits = 2 * lambda;                                                      //2 player seeds 
+    const int hybGameMemBits = P_NUM * lambda;                                                  //2 player seeds 
 
-    const int memHybInitBits = hybGameMemBits/2;                                                //we need 1 game for every 2 players
+    const int memHybInitBits = hybGameMemBits;                                                  //we need 1 game for every 2 players
     const int memHybGameNoRelayBits = memHybInitBits;                                           //seed
-    const int memHybGameRelayBits = memHybGameNoRelayBits + 2*BYTE_SIZE;                        //seed, 2 auxiliary integers and 2 bytes remembering each players turn and previous action
-    const int memHybGameRelayCheatBits = memHybGameRelayBits;                                   //u128 and a byte as auxiliary params
+    const int memHybGameRelayBits = memHybGameNoRelayBits + 2*BYTE_SIZE;                        //seed and 2 bytes remembering previous action
+    const int memHybGameRelayCheatBits = memHybGameRelayBits;                                   //same                            
 
     constexpr float memBaseBytes = static_cast<float>(bitsToBytes(memBaseBits) * TEST_CASES) / 1024 / 1024;
     constexpr float memHybInitBytes = static_cast<float>(bitsToBytes(memHybInitBits) * TEST_CASES) / 1024 / 1024;
@@ -54,6 +61,7 @@ void mainTest() {
     constexpr float memHybGameRelayBytes = static_cast<float>(bitsToBytes(memHybGameRelayBits) * TEST_CASES) / 1024 / 1024;
     constexpr float memHybGameRelayCheatBytes = static_cast<float>(bitsToBytes(memHybGameRelayCheatBits) * TEST_CASES) / 1024 / 1024;
     std::cout << "Estimated Base Memory needed for initialization:                              " << memBaseBytes << " (MB)\n";
+    std::cout << "Estimated Base Memory needed for game:                                        " << memBaseBytes << " (MB)\n";
     std::cout << "Estimated Hybrid Memory needed for initialization:                            " << memHybInitBytes << " (MB)\n";
     std::cout << "Estimated Hybrid Memory needed for game with NO relay fallback:               " << memHybGameNoRelayBytes << " (MB)\n";
     std::cout << "Estimated Hybrid Memory needed for game with relay fallback (no cheating):    " << memHybGameRelayBytes << " (MB)\n";
@@ -61,42 +69,48 @@ void mainTest() {
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
 
-    constexpr float netBaseFlowBytes = static_cast<float>(TURN_NUM * CARD_SIZE_BYTES * TEST_CASES) / 1024 / 1024;
-    const int netHybInitBits = hSize + lambda;
+    constexpr float netBaseInitBytes = static_cast<float>(CARD_NUM * CARD_SIZE_BYTES * P_NUM * TEST_CASES) / 1024 / 1024;
+    constexpr float netBaseFlowBytes = static_cast<float>(TURN_NUM * CARD_SIZE_BYTES * P_NUM * TEST_CASES) / 1024 / 1024;
+
+    const int netHybInitBits = (hSize + lambda) * P_NUM;
+    const int netHybRelayInCheatBits = 3 * BYTE_SIZE;
+
     constexpr float netHybInitBytes = static_cast<float>(bitsToBytes(netHybInitBits) * TEST_CASES) / 1024 / 1024;
     //We asume relay is activated in the middle of the game (on avarage)
-    constexpr float netHybRelayFlow = netBaseFlowBytes / 2 ;
+    constexpr float netHybRelayFlowNoCheatBytes = netBaseFlowBytes / 2;
+    constexpr float netHybRelayFlowCheatBytes = static_cast<float>(bitsToBytes(netHybRelayInCheatBits) * TEST_CASES) / 1024 / 1024;
+
 
     std::cout << "Estimated Base Network (in) for initialization:                               " << 0 << " (MB)\n";
-    std::cout << "Estimated Base Network (out) for initialization:                              " << netBaseFlowBytes << " (MB)\n";
+    std::cout << "Estimated Base Network (out) for initialization:                              " << netBaseInitBytes << " (MB)\n";
     std::cout << "Estimated Base Network (in) for game:                                         " << netBaseFlowBytes << " (MB)\n";
     std::cout << "Estimated Base Network (out) for game:                                        " << netBaseFlowBytes << " (MB)\n";
     std::cout << "Estimated Hybrid Network (in) for initialization:                             " << 0 << " (MB)\n";
     std::cout << "Estimated Hybrid Network (out) for initialization:                            " << netHybInitBytes << " (MB)\n";
     std::cout << "Estimated Hybrid Network (in) for game with NO relay fallback:                " << 0 << " (MB)\n";
     std::cout << "Estimated Hybrid Network (out) for game with NO relay fallback:               " << 0 << " (MB)\n";
-    std::cout << "Estimated Hybrid Network (in) for game with relay fallback:                   " << netHybRelayFlow << " (MB)\n";
-    std::cout << "Estimated Hybrid Network (out) for game with relay fallback:                  " << netHybRelayFlow << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (in) for game with relay fallback (no cheating):     " << netHybRelayFlowNoCheatBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (out) for game with relay fallback (no cheating):    " << netHybRelayFlowNoCheatBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (in) for game with relay fallback (cheat):           " << netHybRelayFlowCheatBytes << " (MB)\n";
+    std::cout << "Estimated Hybrid Network (out) for game with relay fallback (cheat):          " << netHybRelayFlowCheatBytes << " (MB)\n";
     std::cout << "-------------------------------------------------------------------------" << std::endl;
 
 
-
+    
     //emulate inputs from player
-    uint* randArrBase = new uint[TEST_CASES * CARD_NUM];
-    for (int i = 0; i < TEST_CASES * CARD_NUM; i++) {
+    uint* randArrBase = new uint[TEST_CASES * TURN_NUM];
+    for (int i = 0; i < TEST_CASES * TURN_NUM; i++) {
         randArrBase[i] = randUInt() % CARD_NUM;
     }
 
     //test Base CPU times
     Game** gameArr = new Game * [TEST_CASES];
-    for (int i = 0; i < TEST_CASES; i++) {
-        gameArr[i] = new Game();
-        testBaseInit(gameArr[i], false);    //init player 2 (we only measure time for player 1)
-    }
 
     auto start = high_resolution_clock::now();
     for (int i = 0; i < TEST_CASES; i++) {
+        gameArr[i] = new Game();
         testBaseInit(gameArr[i], true);     //init player 1
+        testBaseInit(gameArr[i], false);    //init player 2
     }
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
@@ -121,14 +135,13 @@ void mainTest() {
 
     //test Hybrid CPU times
     initConstans();
-    GameHyb** hybGamesArr = new GameHyb * [TEST_CASES];
-    for (int i = 0; i < TEST_CASES; i++) {
-        hybGamesArr[i] = new GameHyb();
-    }
+    u128* p1Seeds = new u128[TEST_CASES];
+    u128* p2Seeds = new u128[TEST_CASES];
 
     start = high_resolution_clock::now();
     for (int i = 0; i < TEST_CASES; i++) {
-        testHybInit(hybGamesArr[i]);
+        testHybInit(p1Seeds[i]);            //init player 1
+        testHybInit(p2Seeds[i]);            //init player 1
     }
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
@@ -141,13 +154,7 @@ void mainTest() {
     constexpr int avarageRelayTurn = divUp(TURN_NUM, 2);
 
     byte resultsArr[avarageRelayTurn];
-    byte* randCheatKey = new byte[TEST_CASES];
-    bool* randCheatResults = new bool[TEST_CASES];
-    for (int i = 0; i < TEST_CASES; i++) {
-        randCheatKey[i] = randByte();
-        randCheatResults[i] = randByte();
-    }
-
+    bool* turnTestResults = new bool[TEST_CASES];
     byte* randArrHyb0 = new byte[TEST_CASES * avarageRelayTurn];
     byte* randArrHyb1 = new byte[TEST_CASES * avarageRelayTurn];
     for (int i = 0; i < TEST_CASES * avarageRelayTurn; i++) {
@@ -158,32 +165,37 @@ void mainTest() {
     start = high_resolution_clock::now();
     for (int i = 0; i < TEST_CASES; i++) {
         int auxHybCounter = i * avarageRelayTurn;
-        testHybGame_Relay(hybGamesArr[i], avarageRelayTurn, randArrHyb0 + auxHybCounter, randArrHyb1 + auxHybCounter, resultsArr);
-    }
-    stop = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(stop - start);
-    tLong durationCast_NoCheat = duration.count();
-    std::cout << "Measured CPU Hybrid Game with relay fallback (no cheating) time:              " << durationCast_NoCheat << " (ms)\n";
-
-    start = high_resolution_clock::now();
-    for (int i = 0; i < TEST_CASES; i++) {
-        randCheatResults[i] = testHybGame_Cheat(hybGamesArr[i], avarageRelayTurn, randCheatKey[i]);
+        testHybGame_Relay(avarageRelayTurn, randArrHyb0 + auxHybCounter, randArrHyb1 + auxHybCounter, turnTestResults, resultsArr);
     }
     stop = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(stop - start);
     durationCast = duration.count();
-    std::cout << "Measured CPU Hybrid Game with relay fallback (cheating) time:                 " << durationCast + durationCast_NoCheat << " (ms)\n";
+    std::cout << "Measured CPU Hybrid Game with relay fallback (no cheating) time:              " << durationCast << " (ms)\n";
+
+    bool* cheatResults = new bool[TEST_CASES];
+    byte* randCheatKey = new byte[TEST_CASES];
+    for (int i = 0; i < TEST_CASES; i++) {
+        randCheatKey[i] = randByte();
+    }
+    start = high_resolution_clock::now();
+    for (int i = 0; i < TEST_CASES; i++) {
+        cheatResults[i] = testHybGame_Cheat(p1Seeds[i], avarageRelayTurn, randCheatKey[i]);
+    }
+    stop = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(stop - start);
+    durationCast = duration.count();
+    std::cout << "Measured CPU Hybrid Game with relay fallback (cheating) time:                 " << durationCast << " (ms)\n";
 
     std::cout << "-------------------------------------------------------------------------" << std::endl;
-
-    delete[] randCheatKey;
-    delete[] randCheatResults;
+    
     delete[] randArrHyb0;
     delete[] randArrHyb1;
-    for (int i = 0; i < TEST_CASES; ++i) {
-        delete hybGamesArr[i];
-    }
-    delete[] hybGamesArr;
+    delete[] turnTestResults;
+    delete[] randCheatKey;
+    delete[] cheatResults;
+
+    delete[] p1Seeds;
+    delete[] p2Seeds;
 }
 
 
